@@ -19,7 +19,6 @@ const WebcamCapture: React.FC<WebcamProps> = ({getImageSrc}) => {
         async () => {
             if (webcamRef && webcamRef.current) {
                 const imageSrc = (webcamRef.current as any).getScreenshot();
-                console.log("ImageSrc: ", imageSrc);
 
                 await getImageSrc(imageSrc);
             } else {

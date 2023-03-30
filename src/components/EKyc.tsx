@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useEffect} from "react";
 import axios from "axios";
 import TextField from "@mui/material/TextField";
 import Radio from '@mui/material/Radio';
@@ -13,6 +13,8 @@ import {Toast} from "../utils/notifications";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import WebcamCapture from './WebcamCapture';
+import SimpleBackdrop from "./SimpleBackdrop";
+import {Auth} from "aws-amplify";
 
 const Field = styled(TextField)({
     margin: "10px 0",
@@ -33,13 +35,23 @@ const EKyc: React.FC = ({}) => {
     const [idImageSrc, setIdImageSrc] = React.useState<string>();
     const [imageSrc, setImageSrc] = React.useState<string>();
     const [toggleCamera, setCameraToggle] = React.useState(false);
-    const [disableButton, setDisableButton] = React.useState(false);
-    const [requestId, setRequestId] = React.useState<string>();
     const [pollId, setPollerId] = React.useState<number>();
+    const [completed, setCompleted] = React.useState<boolean>(false);
 
-    const {value: name, bind: bindName} = useInput("");
-    const {value: dob, bind: bindDOB} = useInput("");
-    const {value: idNumber, bind: bindIdNumber} = useInput("");
+    const {value: name, bind: bindName, reset: resetName} = useInput("");
+    const {value: dob, bind: bindDOB, reset: resetDOB} = useInput("");
+    const {value: idNumber, bind: bindIdNumber, reset: resetIdNumber} = useInput("");
+
+    useEffect(() => {
+        if (completed) {
+            console.log('Clearing timer...');
+            clearInterval(pollId);
+            setLoading(false);
+            setCompleted(false);
+        } else {
+            console.log('Not yet complete...');
+        }
+    }, [completed, pollId]);
 
     const handleFileRead = () => {
         const content = fileReader.result;
@@ -57,44 +69,38 @@ const EKyc: React.FC = ({}) => {
         setCameraToggle(false);
     }
 
-    const pollStatus = async () => {
+    const pollStatus = async (requestId: string) => {
         let complete = false;
 
         try {
-            console.log('Polling Status: ', requestId);
+            const user: any = await Auth.currentAuthenticatedUser();
 
             const response = await axios.get(`https://l17lpqi6g0.execute-api.ap-south-1.amazonaws.com/ekyc?request_id=${requestId}`, {
                 withCredentials: true,
+                headers: {
+                    'Authorization': user.signInUserSession.idToken.jwtToken,
+                }
             });
 
             const responseData = response.data;
 
-            console.log('Poll Response: ', responseData);
             complete = responseData.complete;
 
             if (complete) {
-                console.log('Completed !!!');
-
                 if (responseData.success) {
-                    Toast("Success!!", "KYC Success", "success");
+                    Toast("KYC Success!!", "Your KYC was successful", "success");
                 } else {
-                    Toast("KYC Failed!!", responseData.error, "danger");
+                    Toast("KYC Failed!!", responseData.error ?? "Your KYC Failed", "danger");
                 }
+
+                setCompleted(true);
             } else {
                 console.log('Still processing...');
             }
         } catch (error: any) {
             console.error('Failed to poll request: ', error);
-            Toast("Error!!", error.data ? error.data.message : error.message, "danger");
-            complete = true;
-        } finally {
-            if (complete) {
-                console.log('Clearing timer...');
-                clearInterval(pollId);
-                setLoading(false);
-            } else {
-                console.log('Not yet complete...');
-            }
+            Toast("Oops!!", error.data ? error.data.message : "Internal Server Error occurred", "danger");
+            setCompleted(true);
         }
     }
 
@@ -112,25 +118,35 @@ const EKyc: React.FC = ({}) => {
                 selfie: imageSrc!.split(';base64,').pop(),
             }
 
+            const user: any = await Auth.currentAuthenticatedUser();
+
             // Post eKyc Request
             const response = await axios.post('https://l17lpqi6g0.execute-api.ap-south-1.amazonaws.com/ekyc', request, {
                 withCredentials: true,
+                headers: {
+                    'Authorization': user.signInUserSession.idToken.jwtToken,
+                }
             });
 
             const rawData = response.data;
 
-            console.log('Raw Data...', rawData);
+            const poll_id: number = setInterval(async () => {
+                await pollStatus(rawData.requestId)
+            }, 1000) as any;
 
-            setRequestId(rawData.requestId);
-
-            console.log('Setting up poller...');
-
-            const poll_id: number = setInterval(pollStatus, 1000) as any;
             setPollerId(poll_id);
         } catch (error: any) {
             console.error('Failed to submit request: ', error);
             Toast("Error!!", error.data ? error.data.message : error.message, "danger");
             setLoading(false);
+        } finally {
+            //Clear everything
+            resetName();
+            resetDOB();
+            resetIdNumber();
+            setIdImageSrc(undefined);
+            setImageSrc(undefined);
+            setIdType('AADHAAR');
         }
     };
 
@@ -177,7 +193,7 @@ const EKyc: React.FC = ({}) => {
                     <img style={{width: '400px', height: '400px', margin: '10px 0', border: '1px solid'}}
                          alt={"Captured Selfie"} src={imageSrc}/>}
                 {!toggleCamera && <SelfieButton variant="contained" onClick={() => setCameraToggle(true)}
-                                                disabled={disableButton}>Take Selfie</SelfieButton>}
+                                                disabled={loading}>Take Selfie</SelfieButton>}
                 {toggleCamera && <WebCamStyled getImageSrc={captureWebcamImage}/>}
                 <Button
                     variant="contained"
@@ -186,9 +202,9 @@ const EKyc: React.FC = ({}) => {
                     type="submit"
                     disabled={loading}
                 >
-                    {loading && <CircularProgress size={20} style={{marginRight: 20}}/>}
                     Submit KYC
                 </Button>
+                <SimpleBackdrop open={loading}/>
             </form>
         </Card>
     );

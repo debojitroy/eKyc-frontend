@@ -1,12 +1,12 @@
 import React from "react";
-import { Auth } from "aws-amplify";
-import { Route, Redirect } from "react-router-dom";
+import {Auth} from "aws-amplify";
+import {Route, Redirect} from "react-router-dom";
 
 interface Props {
     component: React.FC;
 }
 
-const ProtectedRoute: React.FC<Props> = ({ component }) => {
+const ProtectedRoute: React.FC<Props> = ({component}) => {
     const [isAuthenticated, setLoggedIn] = React.useState(true);
     React.useEffect(() => {
         (async () => {
@@ -16,7 +16,7 @@ const ProtectedRoute: React.FC<Props> = ({ component }) => {
                 console.log('We are inside hook...');
 
                 user = await Auth.currentAuthenticatedUser();
-                if (user) {
+                if (user && user.signInUserSession.idToken.jwtToken) {
                     setLoggedIn(true);
                 } else {
                     setLoggedIn(false);
@@ -34,7 +34,7 @@ const ProtectedRoute: React.FC<Props> = ({ component }) => {
                 isAuthenticated ? (
                     React.createElement(component)
                 ) : (
-                    <Redirect to="/signin" />
+                    <Redirect to="/signin"/>
                 )
             }
         />
