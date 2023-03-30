@@ -1,5 +1,4 @@
 import React, {useEffect} from "react";
-import axios from "axios";
 import TextField from "@mui/material/TextField";
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
@@ -11,10 +10,10 @@ import {styled} from "@mui/material/styles";
 import {useInput} from "../utils/forms";
 import {Toast} from "../utils/notifications";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import WebcamCapture from './WebcamCapture';
 import SimpleBackdrop from "./SimpleBackdrop";
 import {Auth} from "aws-amplify";
+import {postData, getData} from '../utils/xhr';
 
 const Field = styled(TextField)({
     margin: "10px 0",
@@ -28,7 +27,7 @@ const WebCamStyled = styled(WebcamCapture)({
     margin: "10px 0",
 })
 
-const EKyc: React.FC = ({}) => {
+const EKyc: React.FC = () => {
     let fileReader: any;
     const [loading, setLoading] = React.useState(false);
     const [idType, setIdType] = React.useState<string>('AADHAAR');
@@ -75,14 +74,9 @@ const EKyc: React.FC = ({}) => {
         try {
             const user: any = await Auth.currentAuthenticatedUser();
 
-            const response = await axios.get(`https://l17lpqi6g0.execute-api.ap-south-1.amazonaws.com/ekyc?request_id=${requestId}`, {
-                withCredentials: true,
-                headers: {
-                    'Authorization': user.signInUserSession.idToken.jwtToken,
-                }
+            const responseData = await getData(`https://l17lpqi6g0.execute-api.ap-south-1.amazonaws.com/ekyc?request_id=${requestId}`, {
+                'Authorization': user.signInUserSession.idToken.jwtToken,
             });
-
-            const responseData = response.data;
 
             complete = responseData.complete;
 
@@ -121,14 +115,9 @@ const EKyc: React.FC = ({}) => {
             const user: any = await Auth.currentAuthenticatedUser();
 
             // Post eKyc Request
-            const response = await axios.post('https://l17lpqi6g0.execute-api.ap-south-1.amazonaws.com/ekyc', request, {
-                withCredentials: true,
-                headers: {
-                    'Authorization': user.signInUserSession.idToken.jwtToken,
-                }
+            const rawData = await postData('https://l17lpqi6g0.execute-api.ap-south-1.amazonaws.com/ekyc', request, {
+                'Authorization': user.signInUserSession.idToken.jwtToken,
             });
-
-            const rawData = response.data;
 
             const poll_id: number = setInterval(async () => {
                 await pollStatus(rawData.requestId)

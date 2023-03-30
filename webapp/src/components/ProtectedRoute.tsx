@@ -30,7 +30,7 @@ const ProtectedRoute: React.FC<Props> = ({component}) => {
 
     return (
         <Route
-            render={(props) =>
+            render={() =>
                 isAuthenticated ? (
                     React.createElement(component)
                 ) : (
